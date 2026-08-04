@@ -12,12 +12,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Image data is required" }, { status: 400 });
     }
 
-    // Initialize Tesseract.js worker
     const worker = await createWorker('eng', 1, {
-      workerPath: path.join(process.cwd(), 'node_modules/tesseract.js/src/worker-script/node/index.js'),
+      workerPath: path.join(process.cwd(), 'node_modules/tesseract.js/dist/worker.min.js'),
       langPath: path.join(process.cwd(), '.tessdata'),
-      corePath: path.join(process.cwd(), 'node_modules/tesseract.js-core'),
       cachePath: path.join(process.cwd(), '.tessdata'),
+      gzip: false,
     });
     
     // Use SPARSE_TEXT (11) for tabular/sparse data
