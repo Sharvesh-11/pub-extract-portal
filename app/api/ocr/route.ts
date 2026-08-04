@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     const base64Data = Buffer.from(arrayBuffer).toString('base64');
     const mimeType = imageFile.type || 'image/jpeg';
 
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-3.6-flash" });
 
     const prompt = `Extract every row of the publication register table from this image.
 Return ONLY a JSON array containing objects (do NOT use markdown fences like \`\`\`json, just return raw JSON).
