@@ -75,7 +75,9 @@ const EditableCell = ({
     >
       {value && value.trim() !== "" ? value : "—"}
       {lowConf && !isEditing && (
-        <AlertTriangle className="w-3.5 h-3.5 text-yellow-500 ml-auto opacity-70 flex-shrink-0" title="Low confidence OCR" />
+        <span title="Low confidence OCR" className="ml-auto flex-shrink-0">
+          <AlertTriangle className="w-3.5 h-3.5 text-yellow-500 opacity-70" />
+        </span>
       )}
     </div>
   );
