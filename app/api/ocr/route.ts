@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createWorker, PSM } from 'tesseract.js';
 import { parseTesseractResult } from '@/lib/ocr-parser';
 import { v4 as uuidv4 } from 'uuid';
+import path from 'path';
 
 export async function POST(request: Request) {
   try {
@@ -12,7 +13,12 @@ export async function POST(request: Request) {
     }
 
     // Initialize Tesseract.js worker
-    const worker = await createWorker('eng');
+    const worker = await createWorker('eng', 1, {
+      workerPath: path.join(process.cwd(), 'node_modules/tesseract.js/src/worker-script/node/index.js'),
+      langPath: path.join(process.cwd(), '.tessdata'),
+      corePath: path.join(process.cwd(), 'node_modules/tesseract.js-core'),
+      cachePath: path.join(process.cwd(), '.tessdata'),
+    });
     
     // Use SPARSE_TEXT (11) for tabular/sparse data
     await worker.setParameters({
