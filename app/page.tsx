@@ -42,17 +42,23 @@ export default function Home() {
         });
 
         try {
-          const base64 = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(file);
-          });
+          const formData = new FormData();
+          formData.append("image", file);
 
-          const response = await axios.post("/api/ocr", { image: base64 });
+          const response = await axios.post("/api/ocr", formData, {
+            headers: {
+              "Content-Type": "multipart/form-data",
+            },
+          });
           
           if (response.data.success) {
-            newRecords.push(...response.data.records);
+            // Append source image metadata to records 
+            const newImageRecords = response.data.records.map((r: PublicationRecord) => ({
+              ...r,
+              id: r.id || Math.random().toString(36).substring(7),
+              sourceImageId: response.data.sourceImageId
+            }));
+            newRecords.push(...newImageRecords);
             setFileTasks(prev => {
               const next = [...prev];
               next[currentIndex].state = 'done';

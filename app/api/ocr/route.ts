@@ -1,60 +1,62 @@
 import { NextResponse } from 'next/server';
-import { createWorker, PSM } from 'tesseract.js';
-import { parseTesseractResult } from '@/lib/ocr-parser';
-import { v4 as uuidv4 } from 'uuid';
-import path from 'path';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 export async function POST(request: Request) {
   try {
-    const { image } = await request.json();
+    const formData = await request.formData();
+    const imageFile = formData.get('image') as File;
     
-    if (!image) {
-      return NextResponse.json({ error: "Image data is required" }, { status: 400 });
+    if (!imageFile) {
+      return NextResponse.json({ success: false, error: "Image file is required in 'image' field" }, { status: 400 });
     }
 
-    const worker = await createWorker('eng', 1, {
-      workerPath: path.join(process.cwd(), 'node_modules/tesseract.js/dist/worker.min.js'),
-      langPath: path.join(process.cwd(), '.tessdata'),
-      cachePath: path.join(process.cwd(), '.tessdata'),
-      gzip: false,
-    });
-    
-    // Use SPARSE_TEXT (11) for tabular/sparse data
-    await worker.setParameters({
-      tessedit_pageseg_mode: PSM.SPARSE_TEXT, 
-    });
+    const arrayBuffer = await imageFile.arrayBuffer();
+    const base64Data = Buffer.from(arrayBuffer).toString('base64');
+    const mimeType = imageFile.type || 'image/jpeg';
 
-    const { data } = await worker.recognize(image);
-    await worker.terminate();
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
-    // Map output for parser
-    const tesseractOutput = {
-      text: data.text,
-      confidence: data.confidence,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      words: (data as any).words.map((w: { text: string; confidence: number; bbox: { x0: number; y0: number; x1: number; y1: number; } }) => ({
-        text: w.text,
-        confidence: w.confidence,
-        bbox: {
-          x0: w.bbox.x0,
-          y0: w.bbox.y0,
-          x1: w.bbox.x1,
-          y1: w.bbox.y1
-        }
-      }))
-    };
+    const prompt = `Extract every row of the publication register table from this image.
+Return ONLY a JSON array containing objects (do NOT use markdown fences like \`\`\`json, just return raw JSON).
+Each object must have exactly these keys:
+- rollNumber
+- studentName
+- paperTitle
+- journalName
+- issn
+- volumeIssue
+- doi
+- prNumber
+- facultyCoordinator
 
-    const sourceImageId = uuidv4();
-    const { records } = parseTesseractResult(tesseractOutput, sourceImageId);
-    
+Use an empty string "" for any blank or illegible fields. Preserve exact text as written.`;
+
+    const result = await model.generateContent([
+      prompt,
+      {
+        inlineData: {
+          data: base64Data,
+          mimeType,
+        },
+      },
+    ]);
+
+    let responseText = result.response.text();
+    // Defensively strip markdown formatting just in case
+    responseText = responseText.replace(/^```(json)?/, '').replace(/```$/, '').trim();
+
+    const records = JSON.parse(responseText);
+
     return NextResponse.json({ 
       success: true, 
-      records, 
-      rawText: data.text,
-      sourceImageId 
+      records,
+      sourceImageId: imageFile.name 
     });
   } catch (error) {
-    console.error('OCR Processing Error:', error);
-    return NextResponse.json({ error: "Failed to process image with OCR" }, { status: 500 });
+    console.error('Gemini API Processing Error:', error);
+    const errMessage = error instanceof Error ? error.message : "Failed to process image with Gemini";
+    return NextResponse.json({ success: false, error: errMessage }, { status: 500 });
   }
 }
