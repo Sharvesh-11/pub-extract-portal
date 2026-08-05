@@ -1,0 +1,10 @@
+node_modules
+.next
+.git
+logs
+*.log
+.env.local
+.env.development
+coverage
+README screenshots
+tmp
