@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
+import { extractData } from '@/services/ai/extractor';
 
 export async function POST(request: Request) {
   try {
@@ -16,47 +14,20 @@ export async function POST(request: Request) {
     const base64Data = Buffer.from(arrayBuffer).toString('base64');
     const mimeType = imageFile.type || 'image/jpeg';
 
-    const model = genAI.getGenerativeModel({ model: "gemini-3.6-flash" });
-
-    const prompt = `Extract every row of the publication register table from this image.
-Return ONLY a JSON array containing objects (do NOT use markdown fences like \`\`\`json, just return raw JSON).
-Each object must have exactly these keys:
-- rollNumber
-- studentName
-- paperTitle
-- journalName
-- issn
-- volumeIssue
-- doi
-- prNumber
-- facultyCoordinator
-
-Use an empty string "" for any blank or illegible fields. Preserve exact text as written.`;
-
-    const result = await model.generateContent([
-      prompt,
-      {
-        inlineData: {
-          data: base64Data,
-          mimeType,
-        },
-      },
-    ]);
-
-    let responseText = result.response.text();
-    // Defensively strip markdown formatting just in case
-    responseText = responseText.replace(/^```(json)?/, '').replace(/```$/, '').trim();
-
-    const records = JSON.parse(responseText);
+    // Call the unified AI extractor
+    const result = await extractData(
+      { base64: base64Data, mimeType },
+      'Gym Member Registration'
+    );
 
     return NextResponse.json({ 
       success: true, 
-      records,
+      result, // contains { documentType, members, warnings, rawText }
       sourceImageId: imageFile.name 
     });
   } catch (error) {
-    console.error('Gemini API Processing Error:', error);
-    const errMessage = error instanceof Error ? error.message : "Failed to process image with Gemini";
+    console.error('AI Processing Error:', error);
+    const errMessage = error instanceof Error ? error.message : "Failed to process image";
     return NextResponse.json({ success: false, error: errMessage }, { status: 500 });
   }
 }

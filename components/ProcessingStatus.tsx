@@ -11,10 +11,11 @@ interface ProcessingStatusProps {
   status: 'idle' | 'extracting' | 'submitting' | 'success' | 'error';
   tasks?: FileTask[];
   message?: string;
+  progress?: number;
   onRetry?: () => void;
 }
 
-export default function ProcessingStatus({ status, tasks = [], message, onRetry }: ProcessingStatusProps) {
+export default function ProcessingStatus({ status, tasks = [], message, progress, onRetry }: ProcessingStatusProps) {
   if (status === 'idle') return null;
 
   if (status === 'submitting') {
@@ -36,9 +37,17 @@ export default function ProcessingStatus({ status, tasks = [], message, onRetry 
         <div className="p-4 sm:p-5">
           <div className="flex items-center gap-3 mb-4 pb-4 border-b border-slate-800">
              <Loader2 className="w-5 h-5 text-indigo-400 animate-spin" />
-             <div>
+             <div className="flex-1">
                <h3 className="text-sm font-semibold text-white">Extracting Data</h3>
-               <p className="text-[11px] text-slate-400 mt-0.5">Processing {tasks.length} image{tasks.length !== 1 ? 's' : ''}</p>
+               <div className="flex items-center justify-between mt-1 mb-2">
+                 <p className="text-[11px] text-slate-400">Processing {tasks.length} image{tasks.length !== 1 ? 's' : ''}</p>
+                 {progress !== undefined && <p className="text-[11px] text-indigo-400 font-medium">{Math.round(progress)}%</p>}
+               </div>
+               {progress !== undefined && (
+                 <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                   <div className="bg-indigo-500 h-1.5 transition-all duration-300 rounded-full" style={{ width: `${progress}%` }}></div>
+                 </div>
+               )}
              </div>
           </div>
           <div className="space-y-2 max-h-48 overflow-y-auto custom-scrollbar pr-1">
