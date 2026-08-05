@@ -4,10 +4,7 @@ import { QueueService } from '@/services/domain/QueueService';
 import { BatchService } from '@/services/domain/BatchService';
 import { createStagedMembers } from '@/features/import/staging';
 import { processMembers } from '@/services/business/pipeline';
-import { Extractor } from '@/services/ai/extractor';
-import { GeminiProvider } from '@/services/ai/gemini';
-import { PromptBuilder } from '@/services/ai/prompt-builder';
-import { ResponseParser } from '@/services/ai/response-parser';
+import { extractData } from '@/services/ai/extractor';
 import { query, closePool } from '@/lib/db';
 import { storage } from '@/lib/storage';
 import { logger } from '@/lib/logger';
@@ -15,11 +12,7 @@ import { logger } from '@/lib/logger';
 const queueService = new QueueService();
 const batchService = new BatchService();
 
-const extractor = new Extractor(
-  new GeminiProvider(),
-  new PromptBuilder(),
-  new ResponseParser()
-);
+
 
 let isShuttingDown = false;
 
@@ -37,13 +30,16 @@ async function runWorker() {
 
       // Read file via storage abstraction
       const buffer = await storage.getFileBuffer(job.filePath);
-      const file = new File([buffer], job.fileName, { type: 'image/jpeg' });
+
       
       const gymId = job.gymId;
       const batchId = job.batchId;
 
       // Extract
-      const extractionResult = await extractor.extract(file);
+      const extractionResult = await extractData(
+        { base64: buffer.toString('base64'), mimeType: 'image/jpeg' },
+        'Gym Member Registration'
+      );
       const newImageRecords = extractionResult.members.map(r => ({
         id: Math.random().toString(36).substring(7),
         sourceImageId: job.id,

@@ -16,7 +16,7 @@ export interface ImportBatch {
   gymId: string;
   name: string;
   createdAt: string;
-  status: 'waiting' | 'processing' | 'completed' | 'failed';
+  status: 'waiting' | 'processing' | 'completed' | 'failed' | 'committed';
   uploadedFiles: UploadedFile[];
   processingProgress: number;
 }

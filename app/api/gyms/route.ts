@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+export const dynamic = 'force-dynamic';
 import { BatchService } from '@/services/domain/BatchService';
 
 const batchService = new BatchService();

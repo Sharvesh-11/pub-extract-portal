@@ -432,7 +432,7 @@ export default function Home() {
           {currentBatch && status === "idle" && currentBatch.status === 'waiting' && stagedMembers.length === 0 && (
             <UploadZone 
               onProcess={handleProcess} 
-              isProcessing={status === "extracting"}
+              isProcessing={false}
             />
           )}
           

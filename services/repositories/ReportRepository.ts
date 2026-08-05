@@ -17,4 +17,20 @@ export class ReportRepository {
     const res = await query('SELECT * FROM processing_reports WHERE "batchId" = $1', [batchId]);
     return res.rows[0];
   }
+
+  async increment(batchId: string, stats: PipelineStats) {
+    const existing = await this.findByBatchId(batchId);
+    if (!existing) {
+      await this.create(batchId, stats);
+    } else {
+      await query(
+        `UPDATE processing_reports 
+         SET "membersFound" = "membersFound" + $1,
+             "mergedMembers" = "mergedMembers" + $2,
+             "validationErrors" = "validationErrors" + $3
+         WHERE "batchId" = $4`,
+        [stats.extractedCount, stats.mergedCount, stats.errorCount, batchId]
+      );
+    }
+  }
 }

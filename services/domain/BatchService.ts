@@ -86,7 +86,7 @@ export class BatchService {
     const planIdMap = new Map<string, string>();
     for (const p of plans) {
       // Avoid duplicate plans inside same batch if possible? Just try to reuse if exists.
-      const existing = await planRepo.findAllByBatchId(batchId);
+      const existing = await planRepo.findByBatchId(batchId);
       const matched = existing.find((e: any) => e.name.toLowerCase() === p.name.toLowerCase());
       if (matched) {
         planIdMap.set(p.id, matched.id);
