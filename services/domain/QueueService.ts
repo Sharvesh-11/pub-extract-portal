@@ -2,12 +2,12 @@ import { query } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 
 export class QueueService {
-  async enqueueJob(batchId: string, gymId: string, filePath: string, fileName: string) {
+  async enqueueJob(batchId: string, gymId: string, filePath: string, fileName: string, mimeType: string = 'image/jpeg') {
     const id = uuidv4();
     await query(`
-      INSERT INTO job_queue (id, "batchId", "gymId", "filePath", "fileName", status)
-      VALUES ($1, $2, $3, $4, $5, 'pending')
-    `, [id, batchId, gymId, filePath, fileName]);
+      INSERT INTO job_queue (id, "batchId", "gymId", "filePath", "fileName", "mimeType", status)
+      VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+    `, [id, batchId, gymId, filePath, fileName, mimeType]);
     return id;
   }
 

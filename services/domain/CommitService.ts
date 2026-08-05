@@ -83,7 +83,9 @@ export class CommitService {
             dob: m.dob,
             address: m.address,
             joinDate: m.joinDate,
-            membershipPlanId: prodPlanId
+            membershipPlanId: prodPlanId,
+            batchId: batchId,
+            sourceFileId: m.sourceFileId
           };
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const keys = Object.keys(updates).filter(k => (updates as any)[k] !== null && (updates as any)[k] !== undefined && (updates as any)[k] !== '');
@@ -97,9 +99,9 @@ export class CommitService {
           // Insert new
           const newMemberId = uuidv4();
           await client.query(`
-            INSERT INTO prod_members (id, "gymId", "membershipPlanId", "fullName", phone, email, gender, dob, address, "joinDate")
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-          `, [newMemberId, gymId, prodPlanId, m.fullName, m.phone, m.email, m.gender, m.dob, m.address, m.joinDate]);
+            INSERT INTO prod_members (id, "gymId", "batchId", "sourceFileId", "membershipPlanId", "fullName", phone, email, gender, dob, address, "joinDate")
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          `, [newMemberId, gymId, batchId, m.sourceFileId, prodPlanId, m.fullName, m.phone, m.email, m.gender, m.dob, m.address, m.joinDate]);
         }
       }
 
@@ -111,16 +113,7 @@ export class CommitService {
 
       await client.query('COMMIT');
       
-      // Cleanup temporary files
-      try {
-         const jobs = await query('SELECT "filePath" FROM job_queue WHERE "batchId" = $1', [batchId]);
-         for (const job of jobs.rows) {
-            await storage.deleteFile(job.filePath);
-         }
-         logger.info('Cleaned up temporary files for batch', { batchId });
-      } catch (cleanupErr: any) {
-         logger.error('Failed to cleanup temp files', { error: cleanupErr.message });
-      }
+      // Files are now permanently kept in batches/{batchId}/ structure
 
     } catch (e) {
       await client.query('ROLLBACK');

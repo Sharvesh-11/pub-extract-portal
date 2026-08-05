@@ -10,7 +10,7 @@ export async function generateContentFromGemini(
   mimeType: string,
   retries = 3
 ): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: "gemini-3.6-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
   let attempt = 0;
   while (attempt <= retries) {

@@ -96,9 +96,25 @@ async function main() {
       "updatedAt" TIMESTAMP DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS job_queue (
+      id UUID PRIMARY KEY,
+      "batchId" UUID REFERENCES import_batches(id),
+      "gymId" UUID REFERENCES gyms(id),
+      "filePath" TEXT NOT NULL,
+      "fileName" TEXT NOT NULL,
+      "mimeType" TEXT DEFAULT 'image/jpeg',
+      status TEXT NOT NULL, -- 'pending', 'processing', 'completed', 'failed'
+      error TEXT,
+      attempts INT DEFAULT 0,
+      "createdAt" TIMESTAMP DEFAULT NOW(),
+      "updatedAt" TIMESTAMP DEFAULT NOW()
+    );
+
     CREATE TABLE IF NOT EXISTS prod_members (
       id UUID PRIMARY KEY,
       "gymId" UUID REFERENCES gyms(id),
+      "batchId" UUID REFERENCES import_batches(id),
+      "sourceFileId" UUID REFERENCES job_queue(id),
       "membershipPlanId" UUID REFERENCES prod_membership_plans(id),
       "fullName" TEXT,
       phone TEXT,
@@ -123,18 +139,6 @@ async function main() {
       "createdAt" TIMESTAMP DEFAULT NOW()
     );
 
-    CREATE TABLE IF NOT EXISTS job_queue (
-      id UUID PRIMARY KEY,
-      "batchId" UUID REFERENCES import_batches(id),
-      "gymId" UUID REFERENCES gyms(id),
-      "filePath" TEXT NOT NULL,
-      "fileName" TEXT NOT NULL,
-      status TEXT NOT NULL, -- 'pending', 'processing', 'completed', 'failed'
-      error TEXT,
-      attempts INT DEFAULT 0,
-      "createdAt" TIMESTAMP DEFAULT NOW(),
-      "updatedAt" TIMESTAMP DEFAULT NOW()
-    );
 
     -- Insert mock gyms if empty
     INSERT INTO gyms (id, name, status)

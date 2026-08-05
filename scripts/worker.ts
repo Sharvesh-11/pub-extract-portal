@@ -5,6 +5,7 @@ import { BatchService } from '@/services/domain/BatchService';
 import { createStagedMembers } from '@/features/import/staging';
 import { processMembers } from '@/services/business/pipeline';
 import { extractData } from '@/services/ai/extractor';
+import { parseSpreadsheet } from '@/services/business/spreadsheet-parser';
 import { query, closePool } from '@/lib/db';
 import { storage } from '@/lib/storage';
 import { logger } from '@/lib/logger';
@@ -19,12 +20,21 @@ let isShuttingDown = false;
 async function runWorker() {
   logger.info("Worker started. Listening for jobs...");
   while (!isShuttingDown) {
-    try {
-      const job = await queueService.dequeueJob();
+      let job: any;
+      try {
+        job = await queueService.dequeueJob();
+      } catch (e: any) {
+        logger.error("Worker error dequeueing job", { error: e.message });
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+      
       if (!job) {
         await new Promise(r => setTimeout(r, 2000));
         continue;
       }
+
+      try {
 
       logger.info(`Processing job ${job.id}`, { fileName: job.fileName, batchId: job.batchId });
 
@@ -34,13 +44,23 @@ async function runWorker() {
       
       const gymId = job.gymId;
       const batchId = job.batchId;
+      const mimeType = job.mimeType || 'image/jpeg';
 
-      // Extract
-      const extractionResult = await extractData(
-        { base64: buffer.toString('base64'), mimeType: 'image/jpeg' },
-        'Gym Member Registration'
-      );
-      const newImageRecords = extractionResult.members.map(r => ({
+      let extractedMembersList: any[] = [];
+      
+      if (mimeType.includes('spreadsheet') || mimeType.includes('csv')) {
+        logger.info(`Parsing spreadsheet natively`, { jobId: job.id });
+        extractedMembersList = parseSpreadsheet(buffer);
+      } else {
+        logger.info(`Sending to AI for extraction`, { jobId: job.id, mimeType });
+        const extractionResult = await extractData(
+          { base64: buffer.toString('base64'), mimeType },
+          'Gym Member Registration'
+        );
+        extractedMembersList = extractionResult.members;
+      }
+
+      const newImageRecords = extractedMembersList.map(r => ({
         id: Math.random().toString(36).substring(7),
         sourceImageId: job.id,
         rawJson: r,
@@ -75,12 +95,22 @@ async function runWorker() {
          }
       }
 
-    } catch (e: any) {
-      logger.error("Worker error processing job", { error: e.message, stack: e.stack });
-      // We don't have job in scope here if it failed on dequeue, but if we do...
-      // Wait, we can't easily mark failed here if job is not in scope.
-      await new Promise(r => setTimeout(r, 2000));
-    }
+      } catch (e: any) {
+        logger.error("Worker error processing job", { error: e.message, stack: e.stack, jobId: job.id });
+        await queueService.markJobFailed(job.id, e.message);
+        
+        // Still check if batch should be marked completed if this was the last job
+        const prog = await queueService.getProgress(job.batchId);
+        if (prog.pending === 0 && prog.processing === 0) {
+           const bRes = await query('SELECT status FROM import_batches WHERE id = $1', [job.batchId]);
+           if (bRes.rows.length > 0) {
+             const batch = bRes.rows[0];
+             if (batch.status !== 'completed' && batch.status !== 'committed') {
+               await batchService.updateBatchStatus(job.batchId, 'completed');
+             }
+           }
+        }
+      }
   }
   
   logger.info("Worker shutdown complete.");

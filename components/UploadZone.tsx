@@ -2,7 +2,7 @@
 
 import React, { useCallback, useState } from "react";
 import { useDropzone } from "react-dropzone";
-import { UploadCloud, FileSearch, X, Loader2 } from "lucide-react";
+import { UploadCloud, FileSearch, X, Loader2, FileText, Table } from "lucide-react";
 
 interface UploadZoneProps {
   onProcess: (files: File[]) => void;
@@ -17,9 +17,23 @@ interface PreviewFile {
 
 export default function UploadZone({ onProcess, isProcessing }: UploadZoneProps) {
   const [files, setFiles] = useState<PreviewFile[]>([]);
+  const [errorMsg, setErrorMsg] = useState<string>("");
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
+  const onDrop = useCallback((acceptedFiles: File[], fileRejections: any[]) => {
     if (isProcessing) return;
+    setErrorMsg("");
+
+    if (fileRejections.length > 0) {
+      const error = fileRejections[0].errors[0];
+      if (error.code === 'file-too-large') {
+        setErrorMsg("File is too large. Maximum size is 15MB.");
+      } else if (error.code === 'file-invalid-type') {
+        setErrorMsg("File type not supported. Please upload images, PDFs, or Excel/CSV files.");
+      } else {
+        setErrorMsg(error.message);
+      }
+      return;
+    }
     
     const newItems = acceptedFiles.map(file => ({
       id: Math.random().toString(36).substring(7),
@@ -32,9 +46,13 @@ export default function UploadZone({ onProcess, isProcessing }: UploadZoneProps)
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
+    maxSize: 15 * 1024 * 1024, // 15MB limit to stay safely under Gemini API limit
     accept: {
       'image/jpeg': ['.jpg', '.jpeg'],
       'image/png': ['.png'],
+      'application/pdf': ['.pdf'],
+      'text/csv': ['.csv'],
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx']
     },
     disabled: isProcessing
   });
@@ -82,14 +100,20 @@ export default function UploadZone({ onProcess, isProcessing }: UploadZoneProps)
           </div>
           <div>
             <h3 className="text-base font-semibold text-slate-200">
-              {isDragActive ? "Drop files now" : "Select or Drop Images"}
+              {isDragActive ? "Drop files now" : "Select or Drop Documents"}
             </h3>
-            <p className="text-xs text-slate-400 max-w-[200px] mx-auto mt-2 leading-relaxed">
-              Upload up to 30 certificates (JPEG, PNG). Phone camera supported.
+            <p className="text-xs text-slate-400 max-w-[250px] mx-auto mt-2 leading-relaxed">
+              Upload up to 30 files (Images, PDF, CSV, XLSX). Max size 15MB.
             </p>
           </div>
         </div>
       </div>
+
+      {errorMsg && (
+        <div className="mt-4 text-sm text-red-400 bg-red-400/10 border border-red-400/20 px-4 py-2 rounded-lg text-center">
+          {errorMsg}
+        </div>
+      )}
 
       {files.length > 0 && (
         <div className="mt-6 flex-1 flex flex-col">
@@ -109,12 +133,22 @@ export default function UploadZone({ onProcess, isProcessing }: UploadZoneProps)
           <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-4 gap-2 mb-6 max-h-[200px] overflow-y-auto custom-scrollbar pr-1">
             {files.map(item => (
               <div key={item.id} className="relative group rounded-lg overflow-hidden bg-slate-950 border border-slate-800 aspect-square shadow-sm">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img 
-                  src={item.originalPreview} 
-                  alt={item.originalFile.name} 
-                  className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110" 
-                />
+                {item.originalFile.type.startsWith('image/') ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img 
+                    src={item.originalPreview} 
+                    alt={item.originalFile.name} 
+                    className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110" 
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center text-slate-500 bg-slate-900 transition-all duration-700 group-hover:bg-slate-800">
+                    {item.originalFile.type.includes('spreadsheet') || item.originalFile.type.includes('csv') ? (
+                       <Table className="w-8 h-8 mb-2" />
+                    ) : (
+                       <FileText className="w-8 h-8 mb-2 text-indigo-400" />
+                    )}
+                  </div>
+                )}
                 
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10" />
                 

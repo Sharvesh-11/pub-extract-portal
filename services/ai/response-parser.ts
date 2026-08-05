@@ -44,6 +44,19 @@ export function parseResponse(rawText: string): StandardExtraction {
     throw new Error("AI returned invalid JSON structure (not an array or object).");
   }
 
+  // Ensure confidence is attached and parsed
+  members = members.map((m: any) => {
+    let conf = 100; // Default if completely missing
+    if (m.confidence !== undefined) {
+      conf = Number(m.confidence);
+      if (isNaN(conf)) conf = 100;
+      if (conf < 0) conf = 0;
+      if (conf > 100) conf = 100;
+    }
+    m.confidence = conf;
+    return m;
+  });
+
   return {
     documentType: "Gym Member Registration",
     members,

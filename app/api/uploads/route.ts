@@ -25,11 +25,12 @@ export async function POST(req: Request) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    const ext = path.extname(file.name);
-    const fileName = `${uuidv4()}${ext}`;
+    const safeOriginalName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+    const fileName = `batches/${batchId}/${uuidv4()}_${safeOriginalName}`;
     
+    const mimeType = file.type || 'application/octet-stream';
     const filePath = await storage.saveFile(fileName, buffer);
-    await queueService.enqueueJob(batchId, gymId, filePath, file.name);
+    await queueService.enqueueJob(batchId, gymId, filePath, file.name, mimeType);
 
     logger.info('File queued for extraction', { batchId, fileName: file.name, jobId: filePath });
 

@@ -17,6 +17,7 @@ export class LocalStorageProvider implements StorageProvider {
 
   async saveFile(fileName: string, buffer: Buffer): Promise<string> {
     const filePath = path.resolve(process.cwd(), config.uploadDir, fileName);
+    await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
     await fs.promises.writeFile(filePath, buffer);
     return filePath;
   }

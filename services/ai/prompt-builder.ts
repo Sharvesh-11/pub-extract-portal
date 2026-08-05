@@ -15,6 +15,7 @@ Each object must have exactly these keys:
 - duration
 - price
 - joinDate
+- confidence (number 0-100, based on field completeness and legibility/clarity of the source text for this member)
 
 Use an empty string "" for any blank or illegible fields. Preserve exact text as written.`;
   }
