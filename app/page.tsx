@@ -199,9 +199,19 @@ export default function Home() {
             await loadWorkspace(currentBatch.id);
           }
 
-          if (batchStatus === 'completed' || batchStatus === 'committed' || (progress.total > 0 && progress.pending === 0 && progress.processing === 0)) {
-             setCurrentBatch(prev => prev ? { ...prev, status: batchStatus === 'committed' ? 'committed' : 'completed' } : null);
-             setStatus("idle");
+          if (batchStatus === 'failed') {
+             setCurrentBatch(prev => prev ? { ...prev, status: 'failed' } : null);
+             setStatus("error");
+             setErrorMessage("Batch processing failed.");
+          } else if (batchStatus === 'completed' || batchStatus === 'committed' || (progress.total > 0 && progress.pending === 0 && progress.processing === 0)) {
+             if (progress.total > 0 && progress.failed > 0 && progress.failed === progress.total) {
+                setCurrentBatch(prev => prev ? { ...prev, status: 'failed' } : null);
+                setStatus("error");
+                setErrorMessage("All extraction jobs failed due to timeouts or errors.");
+             } else {
+                setCurrentBatch(prev => prev ? { ...prev, status: batchStatus === 'committed' ? 'committed' : 'completed' } : null);
+                setStatus("idle");
+             }
           }
         } catch (e) {
           console.error(e);

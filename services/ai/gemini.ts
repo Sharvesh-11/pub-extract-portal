@@ -10,7 +10,14 @@ export async function generateContentFromGemini(
   mimeType: string,
   retries = 3
 ): Promise<string> {
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const model = genAI.getGenerativeModel({ 
+    model: "gemini-2.5-flash",
+    generationConfig: {
+      temperature: 0.1,
+      topP: 0.95,
+      responseMimeType: "application/json"
+    }
+  });
 
   let attempt = 0;
   while (attempt <= retries) {
@@ -23,7 +30,9 @@ export async function generateContentFromGemini(
             mimeType,
           },
         },
-      ]);
+      ], {
+        signal: AbortSignal.timeout(60000)
+      });
       return result.response.text();
     } catch (e: any) {
       attempt++;
