@@ -31,6 +31,7 @@ RUN adduser --system --uid 1001 nextjs
 
 # Set the correct permission for prerender cache
 RUN mkdir .next
+RUN mkdir -p /app/tmp/uploads && chown -R nextjs:nodejs /app/tmp
 RUN chown nextjs:nodejs .next
 
 # Automatically leverage output traces to reduce image size
