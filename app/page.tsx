@@ -29,6 +29,9 @@ export default function Home() {
   const [gyms, setGyms] = useState<Gym[]>([]);
   const [selectedGymId, setSelectedGymId] = useState<string>("");
   const [dashboardData, setDashboardData] = useState<any>(null);
+  
+  const [isAddingGym, setIsAddingGym] = useState(false);
+  const [newGymName, setNewGymName] = useState("");
 
   const [currentBatch, setCurrentBatch] = useState<ImportBatch | null>(null);
   const [status, setStatus] = useState<"idle" | "extracting" | "success" | "error">("idle");
@@ -47,6 +50,20 @@ export default function Home() {
   useEffect(() => {
     axios.get('/api/gyms').then(res => setGyms(res.data)).catch(console.error);
   }, []);
+
+  const handleAddGym = async () => {
+    if (!newGymName.trim()) return;
+    try {
+      const res = await axios.post('/api/gyms', { name: newGymName });
+      const newGym = res.data;
+      setGyms(prev => [...prev, newGym]);
+      setSelectedGymId(newGym.id);
+      setIsAddingGym(false);
+      setNewGymName("");
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const loadDashboard = useCallback(async (gymId: string) => {
     try {
@@ -390,10 +407,33 @@ export default function Home() {
         
         <div className="w-full xl:w-[380px] shrink-0 flex flex-col gap-6">
           <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 shadow-sm">
-            <label className="flex items-center gap-2 text-sm font-semibold text-slate-300 mb-3">
-              <Building2 className="w-4 h-4 text-indigo-400" />
-              Target Gym
-            </label>
+            <div className="flex items-center justify-between mb-3">
+              <label className="flex items-center gap-2 text-sm font-semibold text-slate-300">
+                <Building2 className="w-4 h-4 text-indigo-400" />
+                Target Gym
+              </label>
+              <button onClick={() => setIsAddingGym(!isAddingGym)} className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1">
+                <Plus className="w-3 h-3" /> Add Gym
+              </button>
+            </div>
+            
+            {isAddingGym ? (
+              <div className="flex items-center gap-2 mb-3 animate-in fade-in slide-in-from-top-2">
+                <input 
+                  autoFocus
+                  type="text" 
+                  value={newGymName} 
+                  onChange={e => setNewGymName(e.target.value)} 
+                  placeholder="Gym name..." 
+                  className="flex-1 bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-200"
+                  onKeyDown={e => e.key === 'Enter' && handleAddGym()}
+                />
+                <button onClick={handleAddGym} className="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors">
+                  Save
+                </button>
+              </div>
+            ) : null}
+
             <select
               value={selectedGymId}
               onChange={(e) => setSelectedGymId(e.target.value)}

@@ -23,6 +23,10 @@ export class BatchService {
     return await gymRepo.findAll();
   }
 
+  async createGym(name: string) {
+    return await gymRepo.create(name);
+  }
+
   async createBatch(gymId: string, batchName: string) {
     return await batchRepo.create(gymId, batchName);
   }
