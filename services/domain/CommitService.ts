@@ -68,21 +68,16 @@ export class CommitService {
           const res = await client.query('SELECT id FROM prod_members WHERE "gymId" = $1 AND phone = $2', [gymId, m.contact_no]);
           if (res.rows.length > 0) existingMemberId = res.rows[0].id;
         }
-        if (!existingMemberId && m.email) {
-          const res = await client.query('SELECT id FROM prod_members WHERE "gymId" = $1 AND LOWER(email) = LOWER($2)', [gymId, m.email]);
-          if (res.rows.length > 0) existingMemberId = res.rows[0].id;
-        }
+        // Email lookup removed - contact_no is the sole dedup key now
 
         if (existingMemberId) {
           // Update existing
           const updates = {
-            fullName: m.name,
-            phone: m.contact_no,
-            email: m.email,
-            gender: m.gender,
-            dob: m.dob,
-            address: m.address,
-            joinDate: m.date,
+            name: m.name,
+            contact_no: m.contact_no,
+            date: m.date,
+            plan_duration: m.plan_duration,
+            price: m.price,
             membershipPlanId: prodPlanId,
             batchId: batchId,
             sourceFileId: m.sourceFileId
@@ -99,9 +94,9 @@ export class CommitService {
           // Insert new
           const newMemberId = uuidv4();
           await client.query(`
-            INSERT INTO prod_members (id, "gymId", "batchId", "sourceFileId", "membershipPlanId", "fullName", phone, email, gender, dob, address, "joinDate")
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-          `, [newMemberId, gymId, batchId, m.sourceFileId, prodPlanId, m.name, m.contact_no, m.email, m.gender, m.dob, m.address, m.date]);
+            INSERT INTO prod_members (id, "gymId", "batchId", "sourceFileId", "membershipPlanId", name, contact_no, date, plan_duration, price)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          `, [newMemberId, gymId, batchId, m.sourceFileId, prodPlanId, m.name, m.contact_no, m.date, m.plan_duration, m.price]);
         }
       }
 

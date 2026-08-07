@@ -117,13 +117,11 @@ async function main() {
       "batchId" UUID REFERENCES import_batches(id),
       "sourceFileId" UUID REFERENCES job_queue(id),
       "membershipPlanId" UUID REFERENCES prod_membership_plans(id),
-      "fullName" TEXT,
-      phone TEXT,
-      email TEXT,
-      gender TEXT,
-      dob TEXT,
-      address TEXT,
-      "joinDate" TEXT,
+      name TEXT,
+      contact_no TEXT,
+      date TEXT,
+      plan_duration TEXT,
+      price TEXT,
       "createdAt" TIMESTAMP DEFAULT NOW(),
       "updatedAt" TIMESTAMP DEFAULT NOW()
     );
