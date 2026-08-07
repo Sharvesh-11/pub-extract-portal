@@ -47,8 +47,9 @@ export default function Home() {
   const [filter, setFilter] = useState<'All' | 'Ready' | 'Flagged' | 'Needs Review' | 'Audit Logs'>('All');
   const [search, setSearch] = useState('');
 
-  const [uploadMode, setUploadMode] = useState<'photos' | 'text'>('photos');
-  const [pastedText, setPastedText] = useState('');
+  const [uploadMode, setUploadMode] = useState<'photos' | 'json'>('photos');
+  const [pastedJson, setPastedJson] = useState('');
+  const [jsonError, setJsonError] = useState('');
 
   useEffect(() => {
     axios.get('/api/gyms').then(res => setGyms(res.data)).catch(console.error);
@@ -203,23 +204,40 @@ export default function Home() {
     // Uploads complete, polling will handle the rest.
   };
 
-  const handleProcessText = async () => {
-    if (!currentBatch || !selectedGymId || !pastedText.trim()) return;
+  const handleProcessJson = async () => {
+    if (!currentBatch || !selectedGymId || !pastedJson.trim()) return;
+
+    setJsonError("");
+    let parsedData = null;
+    try {
+      parsedData = JSON.parse(pastedJson);
+      if (!Array.isArray(parsedData)) {
+        setJsonError("Input must be a JSON array of objects.");
+        return;
+      }
+    } catch (e) {
+      setJsonError("Invalid JSON format.");
+      return;
+    }
 
     setStatus("extracting");
-    
     setCurrentBatch(prev => prev ? { ...prev, status: 'processing' } : null);
-    
-    setFileTasks([{ name: 'Pasted Text', state: 'queued' }]);
+    setFileTasks([{ name: 'Direct JSON Import', state: 'processing' }]);
 
     try {
-      await axios.post("/api/uploads/text", {
+      await axios.post(`/api/gyms/${selectedGymId}/import-json`, {
         batchId: currentBatch.id,
         gymId: selectedGymId,
-        text: pastedText
+        members: parsedData
       });
-    } catch {
-       console.error("Failed to upload text");
+      await loadWorkspace(currentBatch.id);
+      setCurrentBatch(prev => prev ? { ...prev, status: 'completed' } : null);
+      setStatus("idle");
+    } catch (e: any) {
+       console.error("Failed to import JSON", e);
+       setJsonError(e.response?.data?.error || "Failed to import JSON.");
+       setStatus("error");
+       setCurrentBatch(prev => prev ? { ...prev, status: 'failed' } : null);
     }
   };
 
@@ -512,10 +530,10 @@ export default function Home() {
                   Upload Photos
                 </button>
                 <button 
-                  onClick={() => setUploadMode('text')}
-                  className={`flex-1 text-sm font-medium py-2 rounded-lg transition-colors ${uploadMode === 'text' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                  onClick={() => setUploadMode('json')}
+                  className={`flex-1 text-sm font-medium py-2 rounded-lg transition-colors ${uploadMode === 'json' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
                 >
-                  Paste Text
+                  Paste JSON
                 </button>
               </div>
 
@@ -527,17 +545,18 @@ export default function Home() {
               ) : (
                 <div className="flex flex-col gap-4">
                   <textarea 
-                    value={pastedText}
-                    onChange={e => setPastedText(e.target.value)}
-                    placeholder="Paste receipt text here..."
-                    className="w-full h-48 bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/50 resize-none custom-scrollbar"
+                    value={pastedJson}
+                    onChange={e => { setPastedJson(e.target.value); setJsonError(""); }}
+                    placeholder='[{ "name": "John Doe", "contact_no": "1234567890", "price": "5000", "date": "2024-01-01", "plan_duration": "3 Months" }]'
+                    className={`w-full h-48 bg-slate-950 border ${jsonError ? 'border-red-500' : 'border-slate-700'} rounded-xl px-4 py-3 text-sm text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/50 resize-none custom-scrollbar`}
                   />
+                  {jsonError && <div className="text-red-400 text-sm font-medium">{jsonError}</div>}
                   <button 
-                    onClick={handleProcessText}
-                    disabled={!pastedText.trim()}
+                    onClick={handleProcessJson}
+                    disabled={!pastedJson.trim()}
                     className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Extract from Text
+                    Import JSON
                   </button>
                 </div>
               )}
