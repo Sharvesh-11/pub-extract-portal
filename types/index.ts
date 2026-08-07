@@ -60,7 +60,6 @@ export interface ExtractedMember {
   id: string;
   gymId: string;
   batchId: string;
-  sourceFileId: string;
   status: 'RAW' | 'NORMALIZED' | 'VALIDATED' | 'FLAGGED' | 'READY';
   confidence: number;
   rawExtraction: MemberData;

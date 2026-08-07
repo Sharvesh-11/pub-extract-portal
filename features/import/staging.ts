@@ -37,7 +37,6 @@ export function createStagedMembers(
       id: Math.random().toString(36).substring(7),
       gymId: gym.id,
       batchId: batch.id,
-      sourceFileId: record.sourceImageId,
       status: 'RAW',
       confidence: raw.confidence ?? 100,
       rawExtraction: raw,

@@ -19,10 +19,6 @@ export function parseSpreadsheet(buffer: Buffer): any[] {
     return {
       name: normalizedRow.name || normalizedRow.fullname || normalizedRow.membername || null,
       contact_no: normalizedRow.phone || normalizedRow.contact || normalizedRow.mobile || null,
-      email: normalizedRow.email || normalizedRow.emailaddress || null,
-      gender: normalizedRow.gender || normalizedRow.sex || null,
-      dob: normalizedRow.dob || normalizedRow.dateofbirth || null,
-      address: normalizedRow.address || normalizedRow.location || null,
       date: normalizedRow.joindate || normalizedRow.dateofjoining || normalizedRow.startdate || null,
       plan_duration: normalizedRow.duration || normalizedRow.planduration || null,
       price: normalizedRow.price || normalizedRow.amount || normalizedRow.fee || null,

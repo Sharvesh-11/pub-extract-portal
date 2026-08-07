@@ -14,8 +14,8 @@ export function resolveMembers(stagedMembers: ExtractedMember[]): { members: Ext
       mergedCount++;
       const existing = finalMap.get(key)!;
       
-      const existingDate = new Date(existing.normalizedData.date).getTime();
-      const newDate = new Date(m.normalizedData.date).getTime();
+      const existingDate = existing.normalizedData.date ? new Date(existing.normalizedData.date).getTime() : 0;
+      const newDate = m.normalizedData.date ? new Date(m.normalizedData.date).getTime() : 0;
       
       if (!isNaN(newDate) && (isNaN(existingDate) || newDate > existingDate)) {
         finalMap.set(key, m); // Newer replaces older
