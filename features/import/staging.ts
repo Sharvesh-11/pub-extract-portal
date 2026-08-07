@@ -1,67 +1,52 @@
-import { ExtractionResult, ImportBatch, Gym, ExtractedMember, MembershipPlan } from '@/types';
+import { ExtractedMember, MembershipPlan } from '@/types';
 
 export function createStagedMembers(
-  extractionResponses: ExtractionResult[],
-  batch: ImportBatch,
-  gym: Gym
-): { members: ExtractedMember[]; plans: MembershipPlan[] } {
+  rawRecords: any[],
+  batch: { id: string },
+  gym: { id: string }
+): { members: ExtractedMember[], plans: MembershipPlan[] } {
   const members: ExtractedMember[] = [];
   const plans: MembershipPlan[] = [];
 
-  const now = new Date().toISOString();
-  const generateId = () => Math.random().toString(36).substring(2, 11);
-
-  for (const response of extractionResponses) {
-    const raw = response.rawJson || {};
+  for (const record of rawRecords) {
+    const raw = record.rawJson;
     
+    // Auto-create plan if enough info exists
     let planId = null;
-    const pName = (raw.membershipPlan || raw.plan || '').toString().trim();
-    const pDuration = (raw.duration || '').toString().trim();
+    const pDuration = (raw.plan_duration || '').toString().trim();
     const pPrice = (raw.price || '').toString().trim();
 
-    if (pName || pDuration || pPrice) {
-      let existingPlan = plans.find(p => p.name === pName && p.duration === pDuration && p.price === pPrice);
-      
-      if (!existingPlan) {
-        existingPlan = {
-          id: `plan_${generateId()}`,
+    if (pDuration || pPrice) {
+      let existingPlan = plans.find(p => p.duration === pDuration && p.price === pPrice);
+      if (existingPlan) {
+        planId = existingPlan.id;
+      } else {
+        planId = Math.random().toString(36).substring(7);
+        plans.push({
+          id: planId,
           gymId: gym.id,
-          name: pName,
+          name: pDuration ? `${pDuration} Plan` : 'Custom Plan',
           duration: pDuration,
           price: pPrice,
-          status: 'NEW_PLAN',
-        };
-        plans.push(existingPlan);
+          status: 'NEW_PLAN'
+        });
       }
-      planId = existingPlan.id;
     }
 
-    // Default confidence to a random high value for UI purposes if missing, 
-    // since the standard extraction doesn't output field-level confidence yet.
-    let conf = 100;
-    if (raw.confidence !== undefined) {
-      conf = Number(raw.confidence);
-    } else {
-      // Simulate real confidence for visual feedback
-      conf = Math.floor(Math.random() * (100 - 70) + 70);
-    }
-
-    const member: ExtractedMember = {
-      id: `member_${generateId()}`,
+    members.push({
+      id: Math.random().toString(36).substring(7),
       gymId: gym.id,
       batchId: batch.id,
-      sourceFileId: response.sourceImageId,
+      sourceFileId: record.sourceImageId,
       status: 'RAW',
-      confidence: conf,
+      confidence: raw.confidence ?? 100,
       rawExtraction: raw,
-      normalizedData: { ...raw },
+      normalizedData: {},
       membershipPlanId: planId,
       validationResults: [],
       duplicateCandidate: null,
-      createdAt: now,
-    };
-
-    members.push(member);
+      createdAt: new Date().toISOString()
+    });
   }
 
   return { members, plans };

@@ -5,18 +5,17 @@ export function resolveMembers(stagedMembers: ExtractedMember[]): { members: Ext
   const finalMap = new Map<string, ExtractedMember>();
 
   for (const m of stagedMembers) {
-    const phone = m.normalizedData?.phoneNumber;
-    const email = m.normalizedData?.email;
+    const contact_no = m.normalizedData?.contact_no;
     
-    // Grouping identifier. Phone takes priority, then email. If neither, don't group.
-    const key = phone ? `phone_${phone}` : email ? `email_${email}` : `unmergable_${m.id}`;
+    // Grouping identifier. Phone takes priority. If neither, don't group.
+    const key = contact_no ? `contact_no_${contact_no}` : `unmergable_${m.id}`;
     
     if (finalMap.has(key)) {
       mergedCount++;
       const existing = finalMap.get(key)!;
       
-      const existingDate = new Date(existing.normalizedData.joinDate).getTime();
-      const newDate = new Date(m.normalizedData.joinDate).getTime();
+      const existingDate = new Date(existing.normalizedData.date).getTime();
+      const newDate = new Date(m.normalizedData.date).getTime();
       
       if (!isNaN(newDate) && (isNaN(existingDate) || newDate > existingDate)) {
         finalMap.set(key, m); // Newer replaces older

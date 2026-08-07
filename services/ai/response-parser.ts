@@ -58,7 +58,7 @@ export function parseResponse(rawText: string): StandardExtraction {
   });
 
   return {
-    documentType: "Gym Member Registration",
+    documentType: "Gym Payment Receipt",
     members,
     warnings,
     rawText

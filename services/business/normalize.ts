@@ -11,23 +11,14 @@ export function normalizeMember(raw: any) {
       .join(' ');
   }
   
-  if (norm.phoneNumber) {
-    norm.phoneNumber = String(norm.phoneNumber).replace(/\D/g, ''); 
+  if (norm.contact_no) {
+    norm.contact_no = String(norm.contact_no).replace(/\s+/g, ''); 
   }
 
-  if (norm.email) {
-    norm.email = String(norm.email).toLowerCase().trim();
-  }
-
-  if (norm.membershipPlan || norm.plan) {
-    norm.membershipPlan = String(norm.membershipPlan || norm.plan).trim().replace(/\s+/g, ' ');
-    delete norm.plan;
-  }
-
-  if (norm.duration) {
-    let dur = String(norm.duration).trim().replace(/\s+/g, ' ');
+  if (norm.plan_duration) {
+    let dur = String(norm.plan_duration).trim().replace(/\s+/g, ' ');
     dur = dur.replace(/months?/i, 'Months');
-    norm.duration = dur;
+    norm.plan_duration = dur;
   }
 
   if (norm.price) {
@@ -43,8 +34,7 @@ export function normalizeMember(raw: any) {
     return String(d).trim();
   };
   
-  if (norm.joinDate) norm.joinDate = parseDate(norm.joinDate);
-  if (norm.dateOfBirth) norm.dateOfBirth = parseDate(norm.dateOfBirth);
+  if (norm.date) norm.date = parseDate(norm.date);
 
   return norm;
 }

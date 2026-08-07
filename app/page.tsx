@@ -47,6 +47,9 @@ export default function Home() {
   const [filter, setFilter] = useState<'All' | 'Ready' | 'Flagged' | 'Needs Review' | 'Audit Logs'>('All');
   const [search, setSearch] = useState('');
 
+  const [uploadMode, setUploadMode] = useState<'photos' | 'text'>('photos');
+  const [pastedText, setPastedText] = useState('');
+
   useEffect(() => {
     axios.get('/api/gyms').then(res => setGyms(res.data)).catch(console.error);
   }, []);
@@ -198,6 +201,26 @@ export default function Home() {
     }
     await Promise.all(uploadWorkers);
     // Uploads complete, polling will handle the rest.
+  };
+
+  const handleProcessText = async () => {
+    if (!currentBatch || !selectedGymId || !pastedText.trim()) return;
+
+    setStatus("extracting");
+    
+    setCurrentBatch(prev => prev ? { ...prev, status: 'processing' } : null);
+    
+    setFileTasks([{ name: 'Pasted Text', state: 'queued' }]);
+
+    try {
+      await axios.post("/api/uploads/text", {
+        batchId: currentBatch.id,
+        gymId: selectedGymId,
+        text: pastedText
+      });
+    } catch {
+       console.error("Failed to upload text");
+    }
   };
 
   // Poll for progress while processing
@@ -361,8 +384,8 @@ export default function Home() {
   if (search.trim()) {
     const s = search.toLowerCase();
     filteredMembers = filteredMembers.filter((m: any) => 
-      (m.fullName || "").toLowerCase().includes(s) ||
-      (m.phone || "").toLowerCase().includes(s) ||
+      (m.name || "").toLowerCase().includes(s) ||
+      (m.contact_no || "").toLowerCase().includes(s) ||
       (m.email || "").toLowerCase().includes(s)
     );
   }
@@ -480,10 +503,45 @@ export default function Home() {
           )}
 
           {currentBatch && status === "idle" && currentBatch.status === 'waiting' && stagedMembers.length === 0 && (
-            <UploadZone 
-              onProcess={handleProcess} 
-              isProcessing={false}
-            />
+            <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 shadow-sm animate-in slide-in-from-top-4 fade-in">
+              <div className="flex bg-slate-950 p-1 rounded-xl mb-4">
+                <button 
+                  onClick={() => setUploadMode('photos')}
+                  className={`flex-1 text-sm font-medium py-2 rounded-lg transition-colors ${uploadMode === 'photos' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                  Upload Photos
+                </button>
+                <button 
+                  onClick={() => setUploadMode('text')}
+                  className={`flex-1 text-sm font-medium py-2 rounded-lg transition-colors ${uploadMode === 'text' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                >
+                  Paste Text
+                </button>
+              </div>
+
+              {uploadMode === 'photos' ? (
+                <UploadZone 
+                  onProcess={handleProcess} 
+                  isProcessing={false}
+                />
+              ) : (
+                <div className="flex flex-col gap-4">
+                  <textarea 
+                    value={pastedText}
+                    onChange={e => setPastedText(e.target.value)}
+                    placeholder="Paste receipt text here..."
+                    className="w-full h-48 bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/50 resize-none custom-scrollbar"
+                  />
+                  <button 
+                    onClick={handleProcessText}
+                    disabled={!pastedText.trim()}
+                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Extract from Text
+                  </button>
+                </div>
+              )}
+            </div>
           )}
           
           {(status === "extracting" || status === "success" || status === "error" || (currentBatch && currentBatch.status === 'processing')) && (
@@ -584,31 +642,78 @@ export default function Home() {
                 <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 space-y-3">
                   {dashboardData.batches.length === 0 ? (
                     <div className="text-center py-10 text-slate-500">No previous imports found for this gym.</div>
-                  ) : dashboardData.batches.map((batch: any) => (
-                    <div 
-                      key={batch.id}
-                      onClick={() => resumeBatch(batch)}
-                      className="group bg-slate-950/80 hover:bg-slate-800/80 border border-slate-800/80 rounded-2xl p-5 flex items-center justify-between cursor-pointer transition-all"
-                    >
-                      <div>
-                        <div className="font-semibold text-slate-200 mb-1 flex items-center gap-2">
-                          {batch.batchName}
-                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
-                            batch.status === 'completed' ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20' :
-                            batch.status === 'failed' ? 'text-red-400 bg-red-400/10 border-red-400/20' :
-                            'text-amber-400 bg-amber-400/10 border-amber-400/20'
-                          }`}>
-                            {batch.status.replace('_', ' ')}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-4 text-xs text-slate-500">
-                           <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5"/> {new Date(batch.createdAt).toLocaleString()}</span>
-                           <span>{batch.membersFound || 0} Members</span>
-                        </div>
-                      </div>
-                      <ChevronRight className="w-5 h-5 text-slate-600 group-hover:text-indigo-400 transition-colors" />
-                    </div>
-                  ))}
+                  ) : (
+                    (() => {
+                      const isBatchFailed = (batch: any) => {
+                        return batch.status === 'failed' || 
+                               Number(batch.stale_jobs) > 0 || 
+                               ((batch.status === 'completed' || batch.status === 'committed') && Number(batch.membersFound) === 0);
+                      };
+                      
+                      const activeBatches = dashboardData.batches.filter((b: any) => !isBatchFailed(b));
+                      const failedBatches = dashboardData.batches.filter((b: any) => isBatchFailed(b));
+
+                      return (
+                        <>
+                          {activeBatches.map((batch: any) => (
+                            <div 
+                              key={batch.id}
+                              onClick={() => resumeBatch(batch)}
+                              className="group bg-slate-950/80 hover:bg-slate-800/80 border border-slate-800/80 rounded-2xl p-5 flex items-center justify-between cursor-pointer transition-all"
+                            >
+                              <div>
+                                <div className="font-semibold text-slate-200 mb-1 flex items-center gap-2">
+                                  {batch.batchName}
+                                  <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                                    batch.status === 'completed' || batch.status === 'committed' ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20' :
+                                    'text-amber-400 bg-amber-400/10 border-amber-400/20'
+                                  }`}>
+                                    {batch.status.replace('_', ' ')}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-4 text-xs text-slate-500">
+                                   <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5"/> {new Date(batch.createdAt).toLocaleString()}</span>
+                                   <span>{batch.membersFound || 0} Members</span>
+                                </div>
+                              </div>
+                              <ChevronRight className="w-5 h-5 text-slate-600 group-hover:text-indigo-400 transition-colors" />
+                            </div>
+                          ))}
+
+                          {failedBatches.length > 0 && (
+                            <details className="mt-6 border-t border-slate-800/80 pt-4">
+                              <summary className="cursor-pointer text-slate-400 font-semibold mb-3 focus:outline-none hover:text-slate-300">
+                                Failed & Empty Imports ({failedBatches.length})
+                              </summary>
+                              <div className="space-y-3">
+                                {failedBatches.map((batch: any) => (
+                                  <div 
+                                    key={batch.id}
+                                    onClick={() => resumeBatch(batch)}
+                                    className="group bg-slate-950/40 opacity-75 hover:opacity-100 hover:bg-slate-800/80 border border-slate-800/80 rounded-2xl p-5 flex items-center justify-between cursor-pointer transition-all"
+                                  >
+                                    <div>
+                                      <div className="font-semibold text-slate-200 mb-1 flex items-center gap-2">
+                                        {batch.batchName}
+                                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border text-red-400 bg-red-400/10 border-red-400/20`}>
+                                          {batch.status === 'completed' || batch.status === 'committed' ? 'No Data' : 'Failed / Stale'}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-4 text-xs text-slate-500">
+                                         <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5"/> {new Date(batch.createdAt).toLocaleString()}</span>
+                                         <span>{batch.membersFound || 0} Members</span>
+                                      </div>
+                                    </div>
+                                    <ChevronRight className="w-5 h-5 text-slate-600 group-hover:text-indigo-400 transition-colors" />
+                                  </div>
+                                ))}
+                              </div>
+                            </details>
+                          )}
+                        </>
+                      );
+                    })()
+                  )}
                 </div>
               </div>
             </div>
@@ -703,14 +808,14 @@ export default function Home() {
                         <div className="flex gap-6 items-start flex-col sm:flex-row">
                            <div className="flex-1 w-full bg-slate-950 p-4 rounded-lg border border-slate-800">
                               <h4 className="text-xs uppercase text-slate-500 mb-2 font-bold tracking-wider">Existing Member</h4>
-                              <div className="text-slate-200 font-medium">{d.target_member.fullName || '—'}</div>
-                              <div className="text-sm text-slate-400 mt-1">{d.target_member.phone || '—'}</div>
+                              <div className="text-slate-200 font-medium">{d.target_member.name || '—'}</div>
+                              <div className="text-sm text-slate-400 mt-1">{d.target_member.contact_no || '—'}</div>
                               <div className="text-sm text-slate-400">{d.target_member.email || '—'}</div>
                            </div>
                            <div className="flex-1 w-full bg-slate-950 p-4 rounded-lg border border-indigo-900/30">
                               <h4 className="text-xs uppercase text-indigo-400 mb-2 font-bold tracking-wider">New Member</h4>
-                              <div className="text-slate-200 font-medium">{d.source_member.fullName || '—'}</div>
-                              <div className="text-sm text-slate-400 mt-1">{d.source_member.phone || '—'}</div>
+                              <div className="text-slate-200 font-medium">{d.source_member.name || '—'}</div>
+                              <div className="text-sm text-slate-400 mt-1">{d.source_member.contact_no || '—'}</div>
                               <div className="text-sm text-slate-400">{d.source_member.email || '—'}</div>
                            </div>
                         </div>
@@ -833,10 +938,10 @@ export default function Home() {
                           return (
                             <tr key={member.id} className="hover:bg-slate-800/20 transition-colors group">
                               <td className="px-5 py-3 sticky left-0 bg-slate-900/50 z-10 shadow-[1px_0_0_rgba(30,41,59,0.5)]">
-                                <EditableCell disabled={isCommitted} value={member.fullName} placeholder="Name" isLowConfidence={isLowConf} onChange={(val: string) => handleUpdateMember(member.id, { fullName: val })} />
+                                <EditableCell disabled={isCommitted} value={member.name} placeholder="Name" isLowConfidence={isLowConf} onChange={(val: string) => handleUpdateMember(member.id, { name: val })} />
                               </td>
                               <td className="px-5 py-3">
-                                <EditableCell disabled={isCommitted} value={member.phone} placeholder="Phone" isLowConfidence={isLowConf} onChange={(val: string) => handleUpdateMember(member.id, { phone: val })} />
+                                <EditableCell disabled={isCommitted} value={member.contact_no} placeholder="Contact No" isLowConfidence={isLowConf} onChange={(val: string) => handleUpdateMember(member.id, { contact_no: val })} />
                               </td>
                               <td className="px-5 py-3">
                                 <EditableCell disabled={isCommitted} value={member.email} placeholder="Email" isLowConfidence={isLowConf} onChange={(val: string) => handleUpdateMember(member.id, { email: val })} />
@@ -899,7 +1004,7 @@ export default function Home() {
                   <div className="space-y-4 max-h-[250px] overflow-y-auto custom-scrollbar pr-2">
                     {flaggedMembers.map((m: any) => (
                       <div key={`err-${m.id}`} className="bg-slate-900/50 border border-red-900/30 rounded-xl p-4 flex gap-4">
-                        <div className="font-semibold text-slate-200 min-w-[150px]">{m.fullName || "Unknown Name"}</div>
+                        <div className="font-semibold text-slate-200 min-w-[150px]">{m.name || "Unknown Name"}</div>
                         <ul className="list-disc list-inside text-sm text-red-300/80 space-y-1">
                           {m.validationResults?.filter((r: any) => r.severity === 'error').map((err: any, i: number) => (
                             <li key={i}>{err.message}</li>

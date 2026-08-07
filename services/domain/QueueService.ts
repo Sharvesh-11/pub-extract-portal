@@ -2,12 +2,12 @@ import { query } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 
 export class QueueService {
-  async enqueueJob(batchId: string, gymId: string, filePath: string, fileName: string, mimeType: string = 'image/jpeg') {
+  async enqueueJob(batchId: string, gymId: string, filePath: string | null, fileName: string, mimeType: string = 'image/jpeg', sourceText?: string) {
     const id = uuidv4();
     await query(`
-      INSERT INTO job_queue (id, "batchId", "gymId", "filePath", "fileName", "mimeType", status)
-      VALUES ($1, $2, $3, $4, $5, $6, 'pending')
-    `, [id, batchId, gymId, filePath, fileName, mimeType]);
+      INSERT INTO job_queue (id, "batchId", "gymId", "filePath", "fileName", "mimeType", "sourceText", status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')
+    `, [id, batchId, gymId, filePath, fileName, mimeType, sourceText || null]);
     return id;
   }
 
@@ -27,8 +27,12 @@ export class QueueService {
     return res.rows[0];
   }
 
-  async markJobCompleted(id: string) {
-    await query(`UPDATE job_queue SET status = 'completed', "updatedAt" = NOW() WHERE id = $1`, [id]);
+  async markJobCompleted(id: string, noDataFound: boolean = false) {
+    if (noDataFound) {
+      await query(`UPDATE job_queue SET status = 'completed', error = 'noDataFound', "updatedAt" = NOW() WHERE id = $1`, [id]);
+    } else {
+      await query(`UPDATE job_queue SET status = 'completed', "updatedAt" = NOW() WHERE id = $1`, [id]);
+    }
   }
 
   async markJobFailed(id: string, error: string) {

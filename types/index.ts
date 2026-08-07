@@ -47,6 +47,15 @@ export interface DuplicateCandidate {
   reason: string;
 }
 
+export interface MemberData {
+  name?: string;
+  contact_no?: string;
+  plan_duration?: string;
+  date?: string;
+  price?: string;
+  confidence?: number;
+}
+
 export interface ExtractedMember {
   id: string;
   gymId: string;
@@ -54,10 +63,8 @@ export interface ExtractedMember {
   sourceFileId: string;
   status: 'RAW' | 'NORMALIZED' | 'VALIDATED' | 'FLAGGED' | 'READY';
   confidence: number;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  rawExtraction: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  normalizedData: any;
+  rawExtraction: MemberData;
+  normalizedData: MemberData;
   membershipPlanId: string | null;
   validationResults: ValidationResult[];
   duplicateCandidate: DuplicateCandidate | null;

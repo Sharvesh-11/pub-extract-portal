@@ -25,7 +25,7 @@ export class DuplicateService {
     // Combine pool to check against (batch members vs other members, and batch members vs themselves)
     for (let i = 0; i < batchMembers.length; i++) {
       const m1 = batchMembers[i];
-      if (!m1.fullName && !m1.phone && !m1.email) continue; // Skip empty rows
+      if (!m1.name && !m1.contact_no && !m1.email) continue; // Skip empty rows
 
       // Check against others in the same batch
       for (let j = i + 1; j < batchMembers.length; j++) {
@@ -49,7 +49,7 @@ export class DuplicateService {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private compareMembers(m1: any, m2: any): { similarity: number, reason: string } | null {
     // Exact phone
-    if (m1.phone && m2.phone && m1.phone === m2.phone) {
+    if (m1.contact_no && m2.contact_no && m1.contact_no === m2.contact_no) {
       return { similarity: 100, reason: 'Exact phone match' };
     }
     // Exact email
@@ -58,8 +58,8 @@ export class DuplicateService {
     }
     
     // High similarity name
-    const n1 = (m1.fullName || '').toLowerCase().trim();
-    const n2 = (m2.fullName || '').toLowerCase().trim();
+    const n1 = (m1.name || '').toLowerCase().trim();
+    const n2 = (m2.name || '').toLowerCase().trim();
     if (n1 && n2 && n1 === n2) {
       // Name + DOB
       if (m1.dob && m2.dob && m1.dob === m2.dob) {
@@ -127,14 +127,14 @@ export class DuplicateService {
       
       if (m1 && m2) {
         const merged = {
-          fullName: m1.fullName || m2.fullName,
-          phone: m1.phone || m2.phone,
+          name: m1.name || m2.name,
+          contact_no: m1.contact_no || m2.contact_no,
           email: m1.email || m2.email,
           gender: m1.gender || m2.gender,
           dob: m1.dob || m2.dob,
           address: m1.address || m2.address,
-          joinDate: m1.joinDate || m2.joinDate,
-          duration: m1.duration || m2.duration,
+          date: m1.date || m2.date,
+          plan_duration: m1.plan_duration || m2.plan_duration,
           price: m1.price || m2.price,
           membershipPlanId: m1.membershipPlanId || m2.membershipPlanId
         };

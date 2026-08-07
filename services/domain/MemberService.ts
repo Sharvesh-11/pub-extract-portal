@@ -16,10 +16,11 @@ export class MemberService {
     
     // Convert DB model to Business logic model
     const rawData = {
-      name: updates.fullName !== undefined ? updates.fullName : existing.fullName,
-      phoneNumber: updates.phone !== undefined ? updates.phone : existing.phone,
+      name: updates.name !== undefined ? updates.name : existing.name,
+      contact_no: updates.contact_no !== undefined ? updates.contact_no : existing.contact_no,
       email: updates.email !== undefined ? updates.email : existing.email,
-      duration: updates.duration !== undefined ? updates.duration : existing.duration,
+      plan_duration: updates.plan_duration !== undefined ? updates.plan_duration : existing.plan_duration,
+      date: updates.date !== undefined ? updates.date : existing.date,
       price: updates.price !== undefined ? updates.price : existing.price,
       membershipPlanId: updates.membershipPlanId !== undefined ? updates.membershipPlanId : existing.membershipPlanId,
       // bump confidence to 100 on edit to clear "Needs Review"
@@ -33,10 +34,11 @@ export class MemberService {
 
     // Map back to DB model
     const dbUpdates = {
-      fullName: normalized.name || null,
-      phone: normalized.phoneNumber || null,
+      name: normalized.name || null,
+      contact_no: normalized.contact_no || null,
       email: normalized.email || null,
-      duration: normalized.duration || null,
+      plan_duration: normalized.plan_duration || null,
+      date: normalized.date || null,
       price: normalized.price || null,
       membershipPlanId: normalized.membershipPlanId,
       confidence: 100,

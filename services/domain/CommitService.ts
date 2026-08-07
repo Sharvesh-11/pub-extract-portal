@@ -31,10 +31,10 @@ export class CommitService {
 
       for (const m of members) {
         if (m.status !== 'READY') {
-          throw new Error(`Member ${m.fullName || m.phone} is not READY. Please fix validation errors.`);
+          throw new Error(`Member ${m.name || m.contact_no} is not READY. Please fix validation errors.`);
         }
         if (Number(m.confidence || 0) < 80) {
-          throw new Error(`Member ${m.fullName || m.phone} needs review (low confidence). Please review and edit.`);
+          throw new Error(`Member ${m.name || m.contact_no} needs review (low confidence). Please review and edit.`);
         }
       }
 
@@ -64,8 +64,8 @@ export class CommitService {
         
         // Try to find existing member by exact phone or email
         let existingMemberId = null;
-        if (m.phone) {
-          const res = await client.query('SELECT id FROM prod_members WHERE "gymId" = $1 AND phone = $2', [gymId, m.phone]);
+        if (m.contact_no) {
+          const res = await client.query('SELECT id FROM prod_members WHERE "gymId" = $1 AND phone = $2', [gymId, m.contact_no]);
           if (res.rows.length > 0) existingMemberId = res.rows[0].id;
         }
         if (!existingMemberId && m.email) {
@@ -76,13 +76,13 @@ export class CommitService {
         if (existingMemberId) {
           // Update existing
           const updates = {
-            fullName: m.fullName,
-            phone: m.phone,
+            fullName: m.name,
+            phone: m.contact_no,
             email: m.email,
             gender: m.gender,
             dob: m.dob,
             address: m.address,
-            joinDate: m.joinDate,
+            joinDate: m.date,
             membershipPlanId: prodPlanId,
             batchId: batchId,
             sourceFileId: m.sourceFileId
@@ -101,7 +101,7 @@ export class CommitService {
           await client.query(`
             INSERT INTO prod_members (id, "gymId", "batchId", "sourceFileId", "membershipPlanId", "fullName", phone, email, gender, dob, address, "joinDate")
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-          `, [newMemberId, gymId, batchId, m.sourceFileId, prodPlanId, m.fullName, m.phone, m.email, m.gender, m.dob, m.address, m.joinDate]);
+          `, [newMemberId, gymId, batchId, m.sourceFileId, prodPlanId, m.name, m.contact_no, m.email, m.gender, m.dob, m.address, m.date]);
         }
       }
 
