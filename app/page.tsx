@@ -457,6 +457,7 @@ export default function Home() {
               </button>
             )}
           </div>
+        </div>
 
           {currentBatch && (
             <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 shadow-sm animate-in slide-in-from-top-4 fade-in">
