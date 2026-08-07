@@ -98,13 +98,11 @@ export default function Home() {
   const loadWorkspace = useCallback(async (batchId: string) => {
     try {
       const res = await axios.get(`/api/review?batchId=${batchId}`);
-      const dupRes = await axios.get(`/api/duplicates?batchId=${batchId}`);
       const auditRes = await axios.get(`/api/batches/${batchId}/audit`);
       
       const { members, plans, report } = res.data;
       setStagedMembers(members);
       setStagedPlans(plans);
-      setDuplicates(dupRes.data);
       setAuditLogs(auditRes.data);
       if (report) {
         setPipelineStats({
@@ -267,14 +265,6 @@ export default function Home() {
     }
   };
 
-  const handleResolveDuplicate = async (candidateId: string, action: string) => {
-    try {
-      await axios.post(`/api/duplicates/${candidateId}/resolve`, { action });
-      if (currentBatch) await loadWorkspace(currentBatch.id);
-    } catch (e) {
-      console.error(e);
-    }
-  };
 
   const handleUpdatePlan = async (id: string, updates: any) => {
     try {
@@ -360,8 +350,7 @@ export default function Home() {
     const s = search.toLowerCase();
     filteredMembers = filteredMembers.filter((m: any) => 
       (m.name || "").toLowerCase().includes(s) ||
-      (m.contact_no || "").toLowerCase().includes(s) ||
-      (m.email || "").toLowerCase().includes(s)
+      (m.contact_no || "").toLowerCase().includes(s)
     );
   }
 
@@ -883,7 +872,7 @@ export default function Home() {
                         <tr>
                           <th className="px-5 py-4 font-semibold sticky left-0 bg-slate-950/95 z-30 shadow-[1px_0_0_rgba(30,41,59,1)]">Name</th>
                           <th className="px-5 py-4 font-semibold">Phone</th>
-                          <th className="px-5 py-4 font-semibold">Email</th>
+                          <th className="px-5 py-4 font-semibold">Date</th>
                           <th className="px-5 py-4 font-semibold">Plan Assignment</th>
                           <th className="px-5 py-4 font-semibold text-right">Status</th>
                           <th className="px-5 py-4 font-semibold text-center">Actions</th>
@@ -913,7 +902,7 @@ export default function Home() {
                                 )}
                               </td>
                               <td className="px-5 py-3">
-                                <EditableCell disabled={isCommitted} value={member.email} placeholder="Email" isLowConfidence={isLowConf} onChange={(val: string) => handleUpdateMember(member.id, { email: val })} />
+                                <EditableCell disabled={isCommitted} value={member.date} placeholder="Join Date" isLowConfidence={isLowConf} onChange={(val: string) => handleUpdateMember(member.id, { date: val })} />
                               </td>
                               <td className="px-5 py-3 min-w-[200px]">
                                 <select 

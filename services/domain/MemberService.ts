@@ -18,7 +18,6 @@ export class MemberService {
     const rawData = {
       name: updates.name !== undefined ? updates.name : existing.name,
       contact_no: updates.contact_no !== undefined ? updates.contact_no : existing.contact_no,
-      email: updates.email !== undefined ? updates.email : existing.email,
       plan_duration: updates.plan_duration !== undefined ? updates.plan_duration : existing.plan_duration,
       date: updates.date !== undefined ? updates.date : existing.date,
       price: updates.price !== undefined ? updates.price : existing.price,
@@ -36,7 +35,6 @@ export class MemberService {
     const dbUpdates = {
       name: normalized.name || null,
       contact_no: normalized.contact_no || null,
-      email: normalized.email || null,
       plan_duration: normalized.plan_duration || null,
       date: normalized.date || null,
       price: normalized.price || null,

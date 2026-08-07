@@ -71,19 +71,17 @@ export class CommitService {
         
         const newMemberId = uuidv4();
         await client.query(`
-          INSERT INTO prod_members (id, "gymId", "batchId", "sourceFileId", "membershipPlanId", name, contact_no, date, plan_duration, price)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          INSERT INTO prod_members (id, "gymId", "membershipPlanId", name, contact_no, date, plan_duration, price)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
           ON CONFLICT ("gymId", contact_no) DO UPDATE SET
             name = EXCLUDED.name,
             date = EXCLUDED.date,
             plan_duration = EXCLUDED.plan_duration,
             price = EXCLUDED.price,
             "membershipPlanId" = EXCLUDED."membershipPlanId",
-            "batchId" = EXCLUDED."batchId",
-            "sourceFileId" = EXCLUDED."sourceFileId",
             "updatedAt" = NOW()
-          WHERE $11 = true
-        `, [newMemberId, gymId, batchId, m.sourceFileId, prodPlanId, m.name, m.contact_no, m.date, m.plan_duration, m.price, shouldOverwrite]);
+          WHERE $9 = true
+        `, [newMemberId, gymId, prodPlanId, m.name, m.contact_no, m.date, m.plan_duration, m.price, shouldOverwrite]);
       }
 
       // 5. Update Batch Status
