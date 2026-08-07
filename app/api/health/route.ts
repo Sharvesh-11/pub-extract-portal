@@ -14,17 +14,7 @@ export async function GET() {
     await query('SELECT 1');
     health.database = 'connected';
     
-    const qRes = await query(`
-      SELECT status, COUNT(*) as count 
-      FROM job_queue 
-      WHERE status IN ('pending', 'processing') 
-      GROUP BY status
-    `);
-    
-    for (const row of qRes.rows) {
-      if (row.status === 'pending') health.queue.pending = Number(row.count);
-      if (row.status === 'processing') health.queue.processing = Number(row.count);
-    }
+
   } catch (e: any) {
     health.status = 'degraded';
     health.database = 'error: ' + e.message;

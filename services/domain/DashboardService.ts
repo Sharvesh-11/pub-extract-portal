@@ -5,15 +5,7 @@ export class DashboardService {
     const batchesRes = await query(`
       SELECT b.*, 
              r."membersFound", r."plansCreated", r."mergedMembers", r."validationErrors", r."overallConfidence",
-             (
-               SELECT COUNT(*) FROM job_queue j 
-               WHERE j."batchId" = b.id 
-               AND (
-                 (j.status = 'processing' AND j."updatedAt" < NOW() - INTERVAL '2 minutes') 
-                 OR 
-                 (j.status = 'failed' AND j.attempts >= 3 AND j."updatedAt" < NOW() - INTERVAL '2 minutes')
-               )
-             ) as stale_jobs
+             0 as stale_jobs
       FROM import_batches b
       LEFT JOIN processing_reports r ON b.id = r."batchId"
       WHERE b."gymId" = $1

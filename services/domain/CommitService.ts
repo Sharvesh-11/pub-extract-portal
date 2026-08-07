@@ -12,15 +12,7 @@ export class CommitService {
     try {
       await client.query('BEGIN');
 
-      // 1. Check for duplicates
-      const dupRes = await client.query(`
-        SELECT COUNT(*) FROM duplicate_candidates 
-        WHERE "memberId" IN (SELECT id FROM extracted_members WHERE "batchId" = $1)
-        AND resolved = FALSE
-      `, [batchId]);
-      if (Number(dupRes.rows[0].count) > 0) {
-        throw new Error('Cannot commit with unresolved duplicates. Please resolve them first.');
-      }
+
 
       // 2. Check all members are READY and confident
       const memRes = await client.query('SELECT * FROM extracted_members WHERE "batchId" = $1', [batchId]);
@@ -62,42 +54,36 @@ export class CommitService {
       for (const m of members) {
         const prodPlanId = m.membershipPlanId ? planMap.get(m.membershipPlanId) : null;
         
-        // Try to find existing member by exact phone or email
-        let existingMemberId = null;
+        let shouldOverwrite = true;
         if (m.contact_no) {
-          const res = await client.query('SELECT id FROM prod_members WHERE "gymId" = $1 AND phone = $2', [gymId, m.contact_no]);
-          if (res.rows.length > 0) existingMemberId = res.rows[0].id;
-        }
-        // Email lookup removed - contact_no is the sole dedup key now
-
-        if (existingMemberId) {
-          // Update existing
-          const updates = {
-            name: m.name,
-            contact_no: m.contact_no,
-            date: m.date,
-            plan_duration: m.plan_duration,
-            price: m.price,
-            membershipPlanId: prodPlanId,
-            batchId: batchId,
-            sourceFileId: m.sourceFileId
-          };
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const keys = Object.keys(updates).filter(k => (updates as any)[k] !== null && (updates as any)[k] !== undefined && (updates as any)[k] !== '');
-          if (keys.length > 0) {
-            const setClause = keys.map((k, i) => `"${k}" = $${i + 2}`).join(', ');
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const values = keys.map(k => (updates as any)[k]);
-            await client.query(`UPDATE prod_members SET ${setClause}, "updatedAt" = NOW() WHERE id = $1`, [existingMemberId, ...values]);
+          const res = await client.query('SELECT date FROM prod_members WHERE "gymId" = $1 AND contact_no = $2', [gymId, m.contact_no]);
+          if (res.rows.length > 0) {
+            const existingDateStr = res.rows[0].date;
+            if (existingDateStr && m.date) {
+               const d1 = Date.parse(m.date);
+               const d2 = Date.parse(existingDateStr);
+               if (!isNaN(d1) && !isNaN(d2)) {
+                   shouldOverwrite = d1 >= d2;
+               }
+            }
           }
-        } else {
-          // Insert new
-          const newMemberId = uuidv4();
-          await client.query(`
-            INSERT INTO prod_members (id, "gymId", "batchId", "sourceFileId", "membershipPlanId", name, contact_no, date, plan_duration, price)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-          `, [newMemberId, gymId, batchId, m.sourceFileId, prodPlanId, m.name, m.contact_no, m.date, m.plan_duration, m.price]);
         }
+        
+        const newMemberId = uuidv4();
+        await client.query(`
+          INSERT INTO prod_members (id, "gymId", "batchId", "sourceFileId", "membershipPlanId", name, contact_no, date, plan_duration, price)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          ON CONFLICT ("gymId", contact_no) DO UPDATE SET
+            name = EXCLUDED.name,
+            date = EXCLUDED.date,
+            plan_duration = EXCLUDED.plan_duration,
+            price = EXCLUDED.price,
+            "membershipPlanId" = EXCLUDED."membershipPlanId",
+            "batchId" = EXCLUDED."batchId",
+            "sourceFileId" = EXCLUDED."sourceFileId",
+            "updatedAt" = NOW()
+          WHERE $11 = true
+        `, [newMemberId, gymId, batchId, m.sourceFileId, prodPlanId, m.name, m.contact_no, m.date, m.plan_duration, m.price, shouldOverwrite]);
       }
 
       // 5. Update Batch Status

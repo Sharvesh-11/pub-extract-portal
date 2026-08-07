@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
-import UploadZone from "@/components/UploadZone";
 import ProcessingStatus, { FileTask } from "@/components/ProcessingStatus";
 import { ExtractionResult, Gym, ImportBatch, UploadedFile, ExtractedMember, MembershipPlan } from "@/types";
 import { createStagedMembers } from "@/features/import/staging";
@@ -47,9 +46,27 @@ export default function Home() {
   const [filter, setFilter] = useState<'All' | 'Ready' | 'Flagged' | 'Needs Review' | 'Audit Logs'>('All');
   const [search, setSearch] = useState('');
 
-  const [uploadMode, setUploadMode] = useState<'photos' | 'json'>('photos');
   const [pastedJson, setPastedJson] = useState('');
   const [jsonError, setJsonError] = useState('');
+
+  const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  const [memberSearchResults, setMemberSearchResults] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!selectedGymId || !memberSearchQuery.trim()) {
+      setMemberSearchResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      try {
+        const res = await axios.get(`/api/gyms/${selectedGymId}/members/search?q=${encodeURIComponent(memberSearchQuery)}`);
+        setMemberSearchResults(res.data.members || []);
+      } catch (e) {
+        console.error(e);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [memberSearchQuery, selectedGymId]);
 
   useEffect(() => {
     axios.get('/api/gyms').then(res => setGyms(res.data)).catch(console.error);
@@ -155,54 +172,7 @@ export default function Home() {
     }
   };
 
-  const handleProcess = async (files: File[]) => {
-    if (!currentBatch || !selectedGymId) return;
 
-    setStatus("extracting");
-    
-    const uploadedFiles: UploadedFile[] = files.map(f => ({
-      id: Math.random().toString(36).substring(7),
-      batchId: currentBatch.id,
-      originalFile: f,
-      originalPreview: URL.createObjectURL(f),
-    }));
-    
-    setCurrentBatch(prev => prev ? { ...prev, status: 'processing', uploadedFiles } : null);
-    
-    const tasks: FileTask[] = files.map(f => ({ name: f.name, state: 'queued' }));
-    setFileTasks([...tasks]);
-
-    // Queue uploads
-    let index = 0;
-    const processNext = async () => {
-      while (true) {
-        if (index >= files.length) break;
-        const currentIndex = index++;
-        const file = files[currentIndex];
-        
-        try {
-          const formData = new FormData();
-          formData.append("batchId", currentBatch.id);
-          formData.append("gymId", selectedGymId);
-          formData.append("image", file);
-
-          await axios.post("/api/uploads", formData, {
-            headers: { "Content-Type": "multipart/form-data" },
-          });
-          
-        } catch {
-           console.error("Failed to upload " + file.name);
-        }
-      }
-    };
-
-    const uploadWorkers = [];
-    for (let i = 0; i < Math.min(5, files.length); i++) {
-      uploadWorkers.push(processNext());
-    }
-    await Promise.all(uploadWorkers);
-    // Uploads complete, polling will handle the rest.
-  };
 
   const handleProcessJson = async () => {
     if (!currentBatch || !selectedGymId || !pastedJson.trim()) return;
@@ -241,43 +211,7 @@ export default function Home() {
     }
   };
 
-  // Poll for progress while processing
-  useEffect(() => {
-    if (currentBatch && currentBatch.status === 'processing') {
-      const interval = setInterval(async () => {
-        try {
-          const res = await axios.get(`/api/batches/${currentBatch.id}/progress`);
-          const { progress, status: batchStatus } = res.data;
-          
-          if (progress.total > 0) {
-            const completed = progress.completed + progress.failed;
-            setCurrentBatch(prev => prev ? { ...prev, processingProgress: (completed / progress.total) * 100 } : null);
-            
-            // Reload workspace to show new members
-            await loadWorkspace(currentBatch.id);
-          }
 
-          if (batchStatus === 'failed') {
-             setCurrentBatch(prev => prev ? { ...prev, status: 'failed' } : null);
-             setStatus("error");
-             setErrorMessage("Batch processing failed.");
-          } else if (batchStatus === 'completed' || batchStatus === 'committed' || (progress.total > 0 && progress.pending === 0 && progress.processing === 0)) {
-             if (progress.total > 0 && progress.failed > 0 && progress.failed === progress.total) {
-                setCurrentBatch(prev => prev ? { ...prev, status: 'failed' } : null);
-                setStatus("error");
-                setErrorMessage("All extraction jobs failed due to timeouts or errors.");
-             } else {
-                setCurrentBatch(prev => prev ? { ...prev, status: batchStatus === 'committed' ? 'committed' : 'completed' } : null);
-                setStatus("idle");
-             }
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      }, 3000);
-      return () => clearInterval(interval);
-    }
-  }, [currentBatch?.status, currentBatch?.id, loadWorkspace]);
 
   const handleUpdateMember = async (id: string, updates: any) => {
     try {
@@ -294,6 +228,29 @@ export default function Home() {
       if (currentBatch) await loadWorkspace(currentBatch.id);
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const handleDeleteProdMember = async (id: string) => {
+    try {
+      await axios.delete(`/api/members/${id}?type=prod`);
+      setMemberSearchResults(prev => prev.filter(m => m.id !== id));
+    } catch (e) {
+      console.error(e);
+      alert('Failed to delete member');
+    }
+  };
+
+  const handleDeleteGym = async (id: string) => {
+    try {
+      await axios.delete(`/api/gyms/${id}`);
+      setSelectedGymId("");
+      setDashboardData(null);
+      const res = await axios.get('/api/gyms');
+      setGyms(res.data);
+    } catch (e) {
+      console.error(e);
+      alert('Failed to delete gym');
     }
   };
 
@@ -475,16 +432,30 @@ export default function Home() {
               </div>
             ) : null}
 
+          <div className="flex items-center gap-2 mb-6">
             <select
               value={selectedGymId}
               onChange={(e) => setSelectedGymId(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-200"
+              className="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-indigo-500/50 text-slate-200"
             >
               <option value="" disabled>Select a gym...</option>
               {gyms.map(gym => (
                 <option key={gym.id} value={gym.id}>{gym.name}</option>
               ))}
             </select>
+            {selectedGymId && (
+              <button 
+                onClick={() => {
+                  const gym = gyms.find(g => g.id === selectedGymId);
+                  const conf = window.prompt(`Type "${gym?.name}" to permanently delete this gym and ALL its data.`);
+                  if (conf === gym?.name) handleDeleteGym(selectedGymId);
+                }} 
+                className="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl transition-colors border border-red-500/20 shrink-0" 
+                title="Delete Gym"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+            )}
           </div>
 
           {currentBatch && (
@@ -522,44 +493,22 @@ export default function Home() {
 
           {currentBatch && status === "idle" && currentBatch.status === 'waiting' && stagedMembers.length === 0 && (
             <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 shadow-sm animate-in slide-in-from-top-4 fade-in">
-              <div className="flex bg-slate-950 p-1 rounded-xl mb-4">
+              <div className="flex flex-col gap-4">
+                <textarea 
+                  value={pastedJson}
+                  onChange={e => { setPastedJson(e.target.value); setJsonError(""); }}
+                  placeholder='[{ "name": "John Doe", "contact_no": "1234567890", "price": "5000", "date": "2024-01-01", "plan_duration": "3 Months" }]'
+                  className={`w-full h-48 bg-slate-950 border ${jsonError ? 'border-red-500' : 'border-slate-700'} rounded-xl px-4 py-3 text-sm text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/50 resize-none custom-scrollbar`}
+                />
+                {jsonError && <div className="text-red-400 text-sm font-medium">{jsonError}</div>}
                 <button 
-                  onClick={() => setUploadMode('photos')}
-                  className={`flex-1 text-sm font-medium py-2 rounded-lg transition-colors ${uploadMode === 'photos' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
+                  onClick={handleProcessJson}
+                  disabled={!pastedJson.trim()}
+                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Upload Photos
-                </button>
-                <button 
-                  onClick={() => setUploadMode('json')}
-                  className={`flex-1 text-sm font-medium py-2 rounded-lg transition-colors ${uploadMode === 'json' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'}`}
-                >
-                  Paste JSON
+                  Import JSON
                 </button>
               </div>
-
-              {uploadMode === 'photos' ? (
-                <UploadZone 
-                  onProcess={handleProcess} 
-                  isProcessing={false}
-                />
-              ) : (
-                <div className="flex flex-col gap-4">
-                  <textarea 
-                    value={pastedJson}
-                    onChange={e => { setPastedJson(e.target.value); setJsonError(""); }}
-                    placeholder='[{ "name": "John Doe", "contact_no": "1234567890", "price": "5000", "date": "2024-01-01", "plan_duration": "3 Months" }]'
-                    className={`w-full h-48 bg-slate-950 border ${jsonError ? 'border-red-500' : 'border-slate-700'} rounded-xl px-4 py-3 text-sm text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/50 resize-none custom-scrollbar`}
-                  />
-                  {jsonError && <div className="text-red-400 text-sm font-medium">{jsonError}</div>}
-                  <button 
-                    onClick={handleProcessJson}
-                    disabled={!pastedJson.trim()}
-                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Import JSON
-                  </button>
-                </div>
-              )}
             </div>
           )}
           
@@ -651,6 +600,49 @@ export default function Home() {
                     <div className="font-bold text-emerald-400 text-2xl">{dashboardData.stats.avgConfidence}%</div>
                   </div>
                 </div>
+              </div>
+
+              <div className="bg-slate-900/40 border border-slate-800/60 rounded-3xl p-6 shadow-sm flex flex-col mb-6">
+                <div className="flex items-center gap-2 text-slate-200 mb-4 font-bold text-lg">
+                  <Search className="w-5 h-5 text-indigo-400" />
+                  Member Directory
+                </div>
+                <input 
+                  type="text" 
+                  placeholder="Search members by name or phone..." 
+                  value={memberSearchQuery}
+                  onChange={e => setMemberSearchQuery(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500/50"
+                />
+                {memberSearchQuery.trim().length > 0 && (
+                  <div className="mt-4 overflow-y-auto custom-scrollbar pr-2 space-y-2 max-h-[300px]">
+                    {memberSearchResults.length === 0 ? (
+                      <div className="text-center py-4 text-slate-500 text-sm">No members found matching "{memberSearchQuery}"</div>
+                    ) : (
+                      memberSearchResults.map((m: any) => (
+                        <div key={m.id} className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-2">
+                          <div>
+                            <div className="font-semibold text-slate-200">{m.name || '—'}</div>
+                            <div className="text-sm text-slate-400">{m.contact_no || '—'}</div>
+                          </div>
+                          <div className="sm:text-right flex items-center gap-4">
+                            <div>
+                              <div className="text-sm text-slate-300 font-medium">{m.plan_name || m.plan_duration || 'No Plan'}</div>
+                              <div className="text-xs text-slate-500">Since {m.date || 'Unknown'} &bull; {m.price ? `₹${m.price}` : '—'}</div>
+                            </div>
+                            <button onClick={() => {
+                              if (window.confirm('Are you sure you want to delete this member?')) {
+                                handleDeleteProdMember(m.id);
+                              }
+                            }} className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-400/10 rounded-lg transition-colors" title="Delete Member">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex-1 bg-slate-900/40 border border-slate-800/60 rounded-3xl p-6 shadow-sm overflow-hidden flex flex-col">
@@ -766,7 +758,7 @@ export default function Home() {
                   ) : (
                     <button 
                       onClick={handleCommit}
-                      disabled={duplicates.length > 0 || stagedMembers.some((m: any) => m.status !== 'READY' || m.confidence < 80)}
+                      disabled={stagedMembers.some((m: any) => m.status !== 'READY' || m.confidence < 80)}
                       className="bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl font-semibold shadow-sm flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       title="All members must be READY and duplicates resolved to commit."
                     >
@@ -810,54 +802,6 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Duplicate Review Screen */}
-              {duplicates.length > 0 && (
-                <div className="bg-amber-950/20 border border-amber-900/50 rounded-3xl p-6 shadow-sm mb-6">
-                  <div className="flex items-center gap-2 text-amber-400 mb-4 font-bold text-lg">
-                    <Users className="w-5 h-5" />
-                    Duplicate Review ({duplicates.length})
-                  </div>
-                  <div className="space-y-4 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
-                    {duplicates.map((d: any) => (
-                      <div key={d.id} className="bg-slate-900 border border-amber-900/30 rounded-xl p-5 flex flex-col gap-4">
-                        <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-                           <div className="text-sm font-semibold text-slate-300">Similarity: {d.similarity}% - <span className="text-amber-400">{d.reason}</span></div>
-                        </div>
-                        
-                        <div className="flex gap-6 items-start flex-col sm:flex-row">
-                           <div className="flex-1 w-full bg-slate-950 p-4 rounded-lg border border-slate-800">
-                              <h4 className="text-xs uppercase text-slate-500 mb-2 font-bold tracking-wider">Existing Member</h4>
-                              <div className="text-slate-200 font-medium">{d.target_member.name || '—'}</div>
-                              <div className="text-sm text-slate-400 mt-1">{d.target_member.contact_no || '—'}</div>
-                              <div className="text-sm text-slate-400">{d.target_member.email || '—'}</div>
-                           </div>
-                           <div className="flex-1 w-full bg-slate-950 p-4 rounded-lg border border-indigo-900/30">
-                              <h4 className="text-xs uppercase text-indigo-400 mb-2 font-bold tracking-wider">New Member</h4>
-                              <div className="text-slate-200 font-medium">{d.source_member.name || '—'}</div>
-                              <div className="text-sm text-slate-400 mt-1">{d.source_member.contact_no || '—'}</div>
-                              <div className="text-sm text-slate-400">{d.source_member.email || '—'}</div>
-                           </div>
-                        </div>
-
-                        <div className="flex flex-wrap gap-3 pt-2">
-                          <button onClick={() => handleResolveDuplicate(d.id, 'keep_existing')} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-medium rounded-lg transition-colors border border-slate-700">
-                             Keep Existing
-                          </button>
-                          <button onClick={() => handleResolveDuplicate(d.id, 'keep_new')} className="px-4 py-2 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-sm font-medium rounded-lg transition-colors border border-indigo-500/30">
-                             Keep New
-                          </button>
-                          <button onClick={() => handleResolveDuplicate(d.id, 'merge')} className="px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-sm font-medium rounded-lg transition-colors border border-emerald-500/30">
-                             Merge
-                          </button>
-                          <button onClick={() => handleResolveDuplicate(d.id, 'not_duplicate')} className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-400 text-sm font-medium rounded-lg transition-colors border border-slate-700">
-                             Not Duplicate
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
 
               {/* Main Content Area */}
               {filter === 'Audit Logs' ? (
@@ -959,8 +903,13 @@ export default function Home() {
                               <td className="px-5 py-3 sticky left-0 bg-slate-900/50 z-10 shadow-[1px_0_0_rgba(30,41,59,0.5)]">
                                 <EditableCell disabled={isCommitted} value={member.name} placeholder="Name" isLowConfidence={isLowConf} onChange={(val: string) => handleUpdateMember(member.id, { name: val })} />
                               </td>
-                              <td className="px-5 py-3">
+                              <td className="px-5 py-3 align-top">
                                 <EditableCell disabled={isCommitted} value={member.contact_no} placeholder="Contact No" isLowConfidence={isLowConf} onChange={(val: string) => handleUpdateMember(member.id, { contact_no: val })} />
+                                {member.existingProdMember && (
+                                  <div className="text-[10px] text-indigo-400 mt-1 whitespace-normal">
+                                    Will update existing member (last updated {member.existingProdMember.date || new Date(member.existingProdMember.updatedAt).toLocaleDateString()})
+                                  </div>
+                                )}
                               </td>
                               <td className="px-5 py-3">
                                 <EditableCell disabled={isCommitted} value={member.email} placeholder="Email" isLowConfidence={isLowConf} onChange={(val: string) => handleUpdateMember(member.id, { email: val })} />

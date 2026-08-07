@@ -6,12 +6,11 @@ export class MemberRepository {
   async create(gymId: string, batchId: string, planId: string | null, data: any, status: string, confidence: number) {
     const id = uuidv4();
     await query(
-      `INSERT INTO extracted_members (id, "gymId", "batchId", "membershipPlanId", name, contact_no, email, gender, dob, address, date, plan_duration, price, confidence, status) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+      `INSERT INTO extracted_members (id, "gymId", "batchId", "membershipPlanId", name, contact_no, date, plan_duration, price, confidence, status) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
       [
         id, gymId, batchId, planId, 
-        data.name || null, data.contact_no || null, data.email || null, data.gender || null, 
-        data.dateOfBirth || null, data.address || null, data.date || null, 
+        data.name || null, data.contact_no || null, data.date || null, 
         data.plan_duration || null, data.price || null, confidence, status
       ]
     );
